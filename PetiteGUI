@@ -1,0 +1,308 @@
+class framework(): 
+
+    def __init__(self,background_colour,green_screen_colour=False,alwaysontop=False): 
+            
+        import pygame 
+        import sys 
+        import time 
+        import random 
+        from random import randint 
+        import win32gui 
+        import win32api 
+        import win32con 
+        from win32gui import SetWindowPos 
+        import moviepy 
+
+        
+        self.pygame = pygame 
+        self.moviepy = moviepy 
+        self.win32gui = win32gui 
+        self.win32api = win32api 
+        self.win32con = win32con 
+        self.SetWindowPos = SetWindowPos 
+        self.sys = sys 
+        self.time = time 
+        self.random = random 
+        self.randint = randint 
+        self.pygame.init() 
+        self.window = self.pygame.display.set_mode((1375,720),pygame.NOFRAME) 
+        self.clock = pygame.time.Clock() 
+        self.pygame.display.set_caption("MYGUI") 
+
+
+        if green_screen_colour: 
+            self.green_screen_colour = green_screen_colour 
+                    
+            Layeredwindow = self.pygame.display.get_wm_info()["window"] 
+
+            self.win32gui.SetWindowLong(Layeredwindow, self.win32con.GWL_EXSTYLE, self.win32gui.GetWindowLong(Layeredwindow, self.win32con.GWL_EXSTYLE) | self.win32con.WS_EX_LAYERED) 
+            if self.green_screen_colour: 
+                self.win32gui.SetLayeredWindowAttributes(Layeredwindow, self.win32api.RGB(*self.green_screen_colour), 0, self.win32con.LWA_COLORKEY) 
+
+                    
+            #Create layered window 
+        self.alwaysontop = alwaysontop 
+        self.pygame.font.init() 
+        self.text = self.pygame.font.SysFont("calibri",15) 
+        self.container_list = [] 
+        self.device_objects = [] 
+        self.button_list = [] 
+        self.textbox_list = [] 
+        self.selected = None 
+        self.position = (0,0) 
+        self.colour = background_colour 
+        self.white = (255,255,255,255) 
+        self.black = (0,0,0,255) 
+        self.user_programme_processes = [] 
+        self.screen_list = [] 
+        self.user_programme_location = "" 
+        self.user_file_name = "" 
+
+    class device(): #a type of object in this system. Has a POSITION, SIZE, and COLOUR 
+        def __init__(self,position,size,colour,framework_object): 
+            self.framework_object = framework_object 
+            self.framework_object.device_objects.append(self) 
+            self.position = position 
+            self.size = size 
+            self.colour = colour 
+            self.rect = self.framework_object.pygame.Rect(self.position[0],self.position[1],self.size[0],self.size[1]) 
+            return None 
+        
+        def update_rect(self): 
+            self.rect = self.framework_object.pygame.Rect(self.position[0],self.position[1],self.size[0],self.size[1]) 
+
+        
+        def render(self): 
+            self.framework_object.pygame.draw.rect(self.framework_object.window,self.colour,self.rect) 
+
+    class container(device): #a device that holds other devices 
+        def __init__(self,position,size,colour,border,framework_object): 
+            super().__init__(position,size,colour,framework_object) 
+            self.rect = self.framework_object.pygame.Rect(self.position[0],self.position[1],self.size[0],self.size[1]) 
+            self.children = [] 
+            self.colour = colour 
+            self.border = border 
+            self.framework_object.container_list.append(self) 
+            return None 
+        
+        def render(self): 
+            self.framework_object.pygame.draw.rect(self.framework_object.window,self.colour,self.rect) 
+            self.framework_object.pygame.draw.rect(self.framework_object.window,tuple(255 - value for value in self.colour),self.rect,self.border) 
+            return None 
+        
+        def process(self): 
+            moving = True 
+            while moving: 
+                    
+                self.framework_object.window.fill(self.framework_object.colour) 
+                previous_position = self.framework_object.pygame.mouse.get_pos() 
+                for process in self.framework_object.user_programme_processes: 
+                    first_index = process.index("(") 
+                    second_index = process.index(")") 
+                    arguments = process[+1+first_index:second_index].split(",") 
+                    edited_arguments = "" 
+                    for argument in arguments: 
+                        edited_arguments += f"{self.framework_object.user_file_name}.{argument}, "
+                for event in self.framework_object.pygame.event.get(): 
+                    if event.type == self.framework_object.pygame.MOUSEBUTTONUP: 
+                        moving = False 
+                new_position = self.framework_object.pygame.mouse.get_pos() 
+                offset_x = new_position[0] - previous_position[0] 
+                offset_y = new_position[1] - previous_position[1] 
+                self.position = (self.position[0]+offset_x,self.position[1]+offset_y) 
+                for child in self.children: 
+                    child.position = (child.position[0]+offset_x,child.position[1]+offset_y) 
+
+                for container_object in self.framework_object.container_list: 
+                    container_object.render() 
+                    for child in container_object.children: 
+                        child.render() 
+                if self.framework_object.selected != None: 
+                    if type(self.framework_object.selected) == framework.container: 
+                        self.framework_object.selected.update_rect() 
+                        self.framework_object.selected.render() 
+                        for child in self.framework_object.selected.children: 
+                            child.update_rect() 
+                            child.render() 
+                    else: 
+                        self.framework_object.selected.parent.update_rect() 
+                        self.framework_object.selected.parent.render() 
+                        for child in self.framework_object.selected.parent.children: 
+                            child.update_rect() 
+                            child.render() 
+
+                self.framework_object.pygame.display.update() 
+
+        
+    class button(device): #a device that executes a command on a click 
+        def __init__(self,function,position,size,colour,parent,framework_object): 
+            super().__init__(position,size,colour,framework_object) 
+            if type(parent) == framework.container: 
+                parent.children.append(self) 
+            self.position = (self.position[0]+parent.position[0]+parent.border,self.position[1]+parent.position[1]+parent.border) 
+            self.on_click = function 
+            self.parent = parent 
+            self.framework_object.button_list.append(self) 
+            self.rect = self.framework_object.pygame.Rect(self.position[0],self.position[1],self.size[0],self.size[1]) 
+            return None 
+        
+        def process(self): 
+            self.on_click() 
+            selected = None 
+            return selected 
+        
+        def render(self): 
+            self.framework_object.pygame.draw.rect(self.framework_object.window,self.colour,self.rect) 
+            return None 
+
+    class screen(device): 
+        def __init__(self,position,size,colour,parent,framework_object): 
+            super().__init__(position,size,colour,framework_object) 
+            if type(parent) == framework.container: 
+                parent.children.append(self) 
+            self.position = (self.position[0]+parent.position[0]+parent.border,self.position[1]+parent.position[1]+parent.border) 
+            self.surface = self.framework_object.pygame.Surface(self.size) 
+            self.parent = parent 
+            self.framework_object.screen_list.append(self) 
+
+
+        def draw(self,object,colour,position,radius=0,side_length_1=0,side_length_2=0): 
+            position = tuple(max(0,value) for value in position) 
+            if object == "circle": 
+                self.framework_object.pygame.draw.circle(self.surface,colour,position,radius) 
+            elif object == "square": 
+                self.framework_object.pygame.draw.rect(self.surface,colour,position[0],self.framework_object.pygame.Rect(position[0],position[1],side_length_1,side_length_2)) 
+            elif object == "line": 
+                self.framework_object.pygame.draw.line(self.surface,colour,position[0]+self.parent.position[0],position[1]+self.parent.position[1]) 
+
+        def render(self): 
+            self.framework_object.window.blit(self.surface,self.position) 
+            self.surface.fill(self.colour) 
+
+        def render_without_clearing(self): 
+            self.framework_object.window.blit(self.surface,self.position) 
+
+        def process(self): 
+            pass 
+            
+    class textbox(device): #a device that stores text and is editable 
+        def __init__(self,position,colour,parent,size,framework_object): 
+            super().__init__(position,size,colour,framework_object) 
+            if type(parent) == framework.container: 
+                parent.children.append(self) 
+            self.parent = parent 
+            self.position = (self.position[0]+parent.position[0]+self.parent.border,self.position[1]+parent.position[1]+self.parent.border) 
+            self.lines = ["Enter Text After Pressing the DELETE Key twice. "] 
+            self.framework_object.textbox_list.append(self) 
+            self.surface = self.framework_object.pygame.Surface(self.size) 
+            return None 
+
+        def process(self): 
+            typing = True 
+            while (typing): 
+                for event in self.framework_object.pygame.event.get(): 
+                    if event.type == self.framework_object.pygame.KEYDOWN and event.key == self.framework_object.pygame.K_DELETE: 
+                        self.lines = [""] 
+                        self.render() 
+                        self.framework_object.pygame.display.update() 
+                    elif (event.type == self.framework_object.pygame.MOUSEBUTTONDOWN): 
+                        for device_object in self.framework_object.device_objects: 
+                            if device_object.rect.collidepoint(self.framework_object.pygame.mouse.get_pos()): 
+                                self.framework_object.selected = device_object 
+                                if self.framework_object.selected != self: 
+                                    return self.framework_object.selected 
+                    elif event.type == self.framework_object.pygame.KEYDOWN and event.key == self.framework_object.pygame.K_RETURN: 
+                        self.lines.append("") 
+                        self.render() 
+                        self.framework_object.pygame.display.update() 
+                    elif event.type == self.framework_object.pygame.KEYDOWN and event.key == self.framework_object.pygame.K_ESCAPE: 
+                        return None 
+                    elif event.type == self.framework_object.pygame.KEYDOWN: 
+                        self.lines[-1+len(self.lines)] += event.unicode 
+                        self.render() 
+                        if (self.parent.size[0]+self.parent.position[0]<-self.parent.border+self.surface.get_width()+self.position[0]): 
+                            self.lines[-1+len(self.lines)] = self.lines[-1+len(self.lines)].removesuffix(event.unicode) 
+                            self.lines.append(f"{event.unicode}") 
+                            self.render() 
+                        self.framework_object.pygame.display.update() 
+            return self 
+
+        def render(self): 
+            self.parent.render() 
+            self.surface.fill(self.colour) 
+            for line in self.lines: 
+                self.surface = self.framework_object.text.render(line,True,self.colour) 
+                self.framework_object.window.blit(self.surface,(self.position[0],self.position[1]+20*self.lines.index(line))) 
+            self.rect = self.framework_object.pygame.Rect(self.position[0],self.position[1],self.framework_object.window.get_width(),20*len(self.lines)) 
+            return None 
+        
+    def handle_mouse_clicks(self, eventlist): 
+        for event in eventlist: 
+            if event.type == self.pygame.MOUSEBUTTONDOWN: 
+                for device_object in self.device_objects: 
+                    if device_object.rect.collidepoint(self.pygame.mouse.get_pos()): 
+                        self.selected = device_object 
+
+        
+    def reorder_containers(self): 
+        if self.selected != None: 
+            if type(self.selected) == framework.container: 
+                self.container_list.remove(self.selected) 
+                self.container_list.append(self.selected) 
+                self.device_objects.remove(self.selected) 
+                self.device_objects.append(self.selected) 
+                for child in self.selected.children: 
+                    self.device_objects.remove(child) 
+                    self.device_objects.append(child) 
+            else: 
+                self.container_list.remove(self.selected.parent) 
+                self.container_list.append(self.selected.parent) 
+                self.device_objects.remove(self.selected) 
+                self.device_objects.append(self.selected) 
+                for child in self.selected.parent.children: 
+                    self.device_objects.remove(child) 
+                    self.device_objects.append(child) 
+
+    def run(self): 
+        self.sys.path.append(self.user_programme_location) 
+        exec(f"import {self.user_file_name}") 
+        #import all user variables 
+        self.selected = self.container_list[-1+len(self.container_list)] 
+        self.reorder_containers() 
+        self.selected = None 
+        running = True 
+        while (running): 
+
+            if self.alwaysontop: 
+                self.SetWindowPos(self.pygame.display.get_wm_info()['window'], -1, 0, 0, 0, 0, 1) 
+
+            self.window.fill(self.colour) 
+            for screen_instance in self.screen_list: 
+                screen_instance.sprites = [] 
+
+            eventlist = self.pygame.event.get() 
+            
+            for event in eventlist: 
+                if (event.type == self.pygame.KEYDOWN and event.key == self.pygame.K_ESCAPE) or (event.type == self.pygame.QUIT): 
+                    running = False 
+                    self.pygame.quit() 
+                    self.sys.exit() 
+            self.handle_mouse_clicks(eventlist) 
+            self.reorder_containers() 
+            for container_instance in self.container_list: 
+                container_instance.render() 
+                for child in container_instance.children: 
+                    child.render() 
+            if self.selected != None: 
+                self.selected = self.selected.process() 
+            for process in self.user_programme_processes: 
+                first_index = process.index("(") 
+                second_index = process.index(")") 
+                arguments = process[+1+first_index:second_index].split(",") 
+                edited_arguments = "" 
+                for argument in arguments: 
+                    edited_arguments += f"{self.user_file_name}.{argument}, "
+                eval(f"{self.user_file_name}.{process[:first_index]}({edited_arguments[:-2+len(edited_arguments)]})") 
+            self.pygame.display.update() 
+            self.clock.tick(120) 
+
